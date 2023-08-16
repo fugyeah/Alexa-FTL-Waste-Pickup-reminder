@@ -1,4 +1,24 @@
-const { geocodeAddress, fetchData, getNextDateForDay } = require('./utils');
+import { geocodeAddress, fetchData, getNextDateForDay } from './utils';
+
+const checkForPermissions = (handlerInput, scope) => {
+    const permissions = handlerInput.requestEnvelope.context.System.user.permissions;
+    return permissions && permissions.scopes[scope].status === 'GRANTED';
+};
+
+const fetchUserAddress = async (handlerInput) => {
+    const deviceId = handlerInput.requestEnvelope.context.System.device.deviceId;
+    const deviceAddressServiceClient = handlerInput.serviceClientFactory.getDeviceAddressServiceClient();
+    return await deviceAddressServiceClient.getFullAddress(deviceId);
+};
+
+const constructFullAddress = (address) => {
+    return `${address['addressLine1']} ${address['addressLine2']} ${address['city']} ${address['stateOrRegion']} ${address['postalCode']} ${address['countryCode']}`;
+};
+
+const fetchDataForLocation = async (fullAddress) => {
+    const { latitude, longitude } = await geocodeAddress(fullAddress);
+    return await Promise.all(Object.values(LAYERS).map(layerId => fetchData(layerId, latitude, longitude)));
+};
 
 const PickupScheduleHandler = {
     async canHandle(handlerInput) {
@@ -7,10 +27,7 @@ const PickupScheduleHandler = {
     },
     async handle(handlerInput) {
         try {
-            const permissions = handlerInput.requestEnvelope.context.System.user.permissions;
-            const addressPermission = permissions && permissions.scopes['read::alexa:device:all:address'].status === 'GRANTED';
-
-            if (!addressPermission) {
+            if (!checkForPermissions(handlerInput, 'read::alexa:device:all:address')) {
                 const speechText = "Please enable Location permissions in the Amazon Alexa app.";
                 return handlerInput.responseBuilder
                     .speak(speechText)
@@ -18,15 +35,9 @@ const PickupScheduleHandler = {
                     .getResponse();
             }
 
-            const deviceId = handlerInput.requestEnvelope.context.System.device.deviceId;
-            const deviceAddressServiceClient = handlerInput.serviceClientFactory.getDeviceAddressServiceClient();
-            const address = await deviceAddressServiceClient.getFullAddress(deviceId);
-
-            const fullAddress = `${address['addressLine1']} ${address['addressLine2']} ${address['city']} ${address['stateOrRegion']} ${address['postalCode']} ${address['countryCode']}`;
-            const { latitude, longitude } = await geocodeAddress(fullAddress);
-
-            const promises = Object.values(LAYERS).map(layerId => fetchData(layerId, latitude, longitude));
-            const results = await Promise.all(promises);
+            const address = await fetchUserAddress(handlerInput);
+            const fullAddress = constructFullAddress(address);
+            const results = await fetchDataForLocation(fullAddress);
 
             const speechText = constructResponse(results);
 

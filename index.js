@@ -1,14 +1,36 @@
-const Alexa = require('ask-sdk-core');
-const axios = require('axios');
-const { PickupScheduleHandler, SetRecyclingReminderIntentHandler, SetBulkReminderIntentHandler, CancelAndStopIntentHandler, HelpIntentHandler, FallbackIntentHandler, SessionEndedRequestHandler } = require('./intents'); // Import handlers from intents.js
+import Alexa from 'ask-sdk-core';
+import axios from 'axios';
+import { 
+    PickupScheduleHandler, 
+    SetRecyclingReminderIntentHandler, 
+    SetBulkReminderIntentHandler, 
+    CancelAndStopIntentHandler, 
+    HelpIntentHandler, 
+    FallbackIntentHandler, 
+    SessionEndedRequestHandler 
+} from './intents'; // Import handlers from intents.js
 
-const ErrorHandler = {
+const NetworkErrorHandler = {
+    canHandle(handlerInput, error) {
+        return error instanceof axios.NetworkError; // Assuming axios is used for network requests
+    },
+    handle(handlerInput, error) {
+        console.error(`Network error: ${error.stack}`);
+        const speechText = "Sorry, I'm having trouble connecting to the server. Please try again later.";
+        return handlerInput.responseBuilder
+            .speak(speechText)
+            .reprompt(speechText)
+            .getResponse();
+    }
+};
+
+const GenericErrorHandler = {
     canHandle() {
         return true;
     },
     handle(handlerInput, error) {
-        console.log(`Error handled: ${error.message}`);
-        const speechText = "Sorry, I encountered an error. Please try again.";
+        console.error(`Error handled: ${error.stack}`);
+        const speechText = "Sorry, I encountered an unexpected error. Please try again.";
         return handlerInput.responseBuilder
             .speak(speechText)
             .reprompt(speechText)
@@ -27,6 +49,9 @@ exports.handler = Alexa.SkillBuilders.custom()
         SetBulkReminderIntentHandler
         // ... any other handlers you define
     )
-    .addErrorHandlers(ErrorHandler)
+    .addErrorHandlers(
+        NetworkErrorHandler,
+        GenericErrorHandler
+    )
     .lambda();
 

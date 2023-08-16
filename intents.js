@@ -1,4 +1,4 @@
-import { geocodeAddress, fetchData, getNextDateForDay } from './utils';
+import { geocodeAddress, fetchData, LAYERS, constructResponse, getNextDateForDay } from './utils';
 
 const checkForPermissions = (handlerInput, scope) => {
     const permissions = handlerInput.requestEnvelope.context.System.user.permissions;
@@ -147,21 +147,6 @@ const SetRecyclingReminderIntentHandler = {
             .getResponse();
     }
 };
-function getNextDateForDay(dayOfWeek) {
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const today = new Date();
-    const todayIdx = today.getDay();
-    const targetIdx = days.indexOf(dayOfWeek);
-
-    let daysToAdd = targetIdx - todayIdx;
-    if (daysToAdd <= 0) {
-        daysToAdd += 7;
-    }
-
-    const resultDate = new Date(today);
-    resultDate.setDate(today.getDate() + daysToAdd);
-    return resultDate;
-}
 
 const CancelAndStopIntentHandler = {
     canHandle(handlerInput) {

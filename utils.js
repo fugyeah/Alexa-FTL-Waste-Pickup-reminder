@@ -69,5 +69,7 @@ module.exports = {
     geocodeAddress,
     fetchData,
     getNextDateForDay,
-    constructResponse
+    constructResponse,
+    BASE_URL,
+    LAYERS
 };

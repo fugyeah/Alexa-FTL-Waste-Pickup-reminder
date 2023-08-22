@@ -3,12 +3,23 @@ const axios = require('axios');
 const GEOCODING_API_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
-const BASE_URL = "https://gis.fortlauderdale.gov/arcgis/rest/services/Accela/Accela/MapServer/{}/query?geometry=longitude,latitude&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=*&f=json";
 const LAYERS = {
-    "Bulk Trash": 21,
-    "Recycling": 22,
-    "Trash": 23,
-    "Yardwaste": 24
+    "Fort Lauderdale": {
+        "Bulk Trash": 21,
+        "Recycling": 22,
+        "Trash": 23,
+        "Yardwaste": 24
+    },
+    "Tamarac": {
+        "Bulk Trash": "Bulk_",
+        "Recycling": "Recycle",
+        "Trash": "Garbage"
+    }
+};
+
+const ENDPOINTS = {
+    'FORT_LAUDERDALE': "https://gis.fortlauderdale.gov/arcgis/rest/services/Accela/Accela/MapServer/{}/query?geometry=longitude,latitude&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=*&f=json",
+    'TAMARAC': "https://gis.tamarac.org/server/rest/services/General_Data/Recycling_and_Trash_Zones/FeatureServer/0?f=pjson"
 };
 
 async function geocodeAddress(address) {
@@ -21,13 +32,33 @@ async function geocodeAddress(address) {
     return { latitude: location.lat, longitude: location.lng };
 }
 
-async function fetchData(layerId, latitude, longitude) {
-    const url = BASE_URL.replace("{}", layerId).replace("longitude", longitude).replace("latitude", latitude);
+async function determineEndpoint(address) {
+    const geocodedData = await geocodeAddress(address);
+    if (geocodedData.formatted_address.includes('Fort Lauderdale')) {
+        return { endpoint: ENDPOINTS.FORT_LAUDERDALE, city: 'Fort Lauderdale' };
+    } else if (geocodedData.formatted_address.includes('Tamarac')) {
+        return { endpoint: ENDPOINTS.TAMARAC, city: 'Tamarac' };
+    } else {
+        throw new Error('Unsupported region');
+    }
+}
+
+async function fetchData(city, layerName, latitude, longitude) {
+    let url;
+    if (city === 'Fort Lauderdale') {
+        url = ENDPOINTS.FORT_LAUDERDALE.replace("{}", LAYERS["Fort Lauderdale"][layerName]).replace("longitude", longitude).replace("latitude", latitude);
+    } else if (city === 'Tamarac') {
+        url = ENDPOINTS.TAMARAC.replace("{}", LAYERS["Tamarac"][layerName]).replace("longitude", longitude).replace("latitude", latitude);
+    } else {
+        throw new Error('Unsupported city');
+    }
     const response = await axios.get(url);
     if (!response.data || !response.data.features || !response.data.features[0]) {
         throw new Error('Unexpected data from GIS service');
-}
+    }
     return response.data.features[0].attributes;
+}
+
 
     function constructResponse(results) {
         const responseMapping = {
@@ -75,6 +106,6 @@ module.exports = {
     fetchData,
     getNextDateForDay,
     constructResponse,
-    BASE_URL,
+    ENDPOINTS,
     LAYERS
-}};
+};

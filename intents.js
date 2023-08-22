@@ -16,7 +16,14 @@ const checkAndHandlePermissions = (handlerInput, scope) => {
 const fetchDataForUserAddress = async (handlerInput) => {
     const address = await fetchUserAddress(handlerInput);
     const fullAddress = constructFullAddress(address);
-    return await fetchDataForLocation(fullAddress);
+    const { endpoint, city } = await determineEndpoint(fullAddress);
+    
+    const results = [];
+    for (let layerName in LAYERS[city]) {
+        const data = await fetchData(city, layerName, fullAddress.latitude, fullAddress.longitude);
+        results.push(data);
+    }
+    return results;
 };
 
 const handleError = (handlerInput, error) => {
@@ -55,14 +62,23 @@ class PickupScheduleHandler extends BaseIntentHandler {
             const permissionResponse = checkAndHandlePermissions(handlerInput, 'read::alexa:device:all:address');
             if (permissionResponse) return permissionResponse;
 
-            const results = await fetchDataForUserAddress(handlerInput);
+            const data = await fetchDataForUserAddress(handlerInput);
+            const results = data.attributes;
+            const city = data.city;
 
-            // Extract the two trash pickup days
-            const [day1, day2] = results[0].TRASHDAY.split(' & ');
-            
+            let day1, day2;
+
+            if (city === 'Fort Lauderdale') {
+                [day1, day2] = results.TRASHDAY.split(' & ');
+            } else if (city === 'Tamarac') {
+                [day1, day2] = results.TRASHDAY.split('/');
+            } else {
+                throw new Error('Unsupported city');
+            }
+
             // Set reminders for both days
-            await setReminderForDay(handlerInput, day1, "Trash pickup reminder for today!");
-            await setReminderForDay(handlerInput, day2, "Trash pickup reminder for today!");
+            await setReminderForDay(handlerInput, day1.trim(), "Trash pickup reminder for today!");
+            await setReminderForDay(handlerInput, day2.trim(), "Trash pickup reminder for today!");
 
             const speechText = `Reminders set for trash pickups on ${day1} and ${day2}.`;
 
@@ -120,14 +136,23 @@ class GetTrashPickupIntentHandler extends BaseIntentHandler {
             const permissionResponse = checkAndHandlePermissions(handlerInput, 'read::alexa:device:all:address');
             if (permissionResponse) return permissionResponse;
 
-            const results = await fetchDataForUserAddress(handlerInput);
+            const data = await fetchDataForUserAddress(handlerInput);
+            const results = data.attributes;
+            const city = data.city;
 
-            // Extract the two trash pickup days
-            const [day1, day2] = results[0].TRASHDAY.split(' & ');
-            
+            let day1, day2;
+
+            if (city === 'Fort Lauderdale') {
+                [day1, day2] = results.TRASHDAY.split(' & ');
+            } else if (city === 'Tamarac') {
+                [day1, day2] = results.TRASHDAY.split('/');
+            } else {
+                throw new Error('Unsupported city');
+            }
+
             // Determine the next trash pickup dates for both days
-            const nextPickupDate1 = getNextDateForDay(day1);
-            const nextPickupDate2 = getNextDateForDay(day2);
+            const nextPickupDate1 = getNextDateForDay(day1.trim());
+            const nextPickupDate2 = getNextDateForDay(day2.trim());
             
             // Construct the speech response
             const speechText = `The next trash pickups are on ${nextPickupDate1.toDateString()} and ${nextPickupDate2.toDateString()}.`;
@@ -140,7 +165,6 @@ class GetTrashPickupIntentHandler extends BaseIntentHandler {
     }
 }
 
-
 class GetRecyclingPickupIntentHandler extends BaseIntentHandler {
     constructor() {
         super('GetRecyclingPickupIntent');
@@ -152,10 +176,20 @@ class GetRecyclingPickupIntentHandler extends BaseIntentHandler {
             const permissionResponse = checkAndHandlePermissions(handlerInput, 'read::alexa:device:all:address');
             if (permissionResponse) return permissionResponse;
 
-            const results = await fetchDataForUserAddress(handlerInput);
+            const data = await fetchDataForUserAddress(handlerInput);
+            const results = data.attributes;
+            const city = data.city;
+
+            let recyclingDay;
+
+            if (city === 'Fort Lauderdale' || city === 'Tamarac') {
+                recyclingDay = results.RECYCLDAY;
+            } else {
+                throw new Error('Unsupported city');
+            }
 
             // Construct the speech response
-            const speechText = `Recycling pickup is on ${results[1].RECYCLDAY}.`;
+            const speechText = `Recycling pickup is on ${recyclingDay}.`;
 
             return handlerInput.responseBuilder.speak(speechText).getResponse();
 
@@ -176,10 +210,20 @@ class GetYardWastePickupIntentHandler extends BaseIntentHandler {
             const permissionResponse = checkAndHandlePermissions(handlerInput, 'read::alexa:device:all:address');
             if (permissionResponse) return permissionResponse;
 
-            const results = await fetchDataForUserAddress(handlerInput);
+            const data = await fetchDataForUserAddress(handlerInput);
+            const results = data.attributes;
+            const city = data.city;
+
+            let yardWasteDay;
+
+            if (city === 'Fort Lauderdale' || city === 'Tamarac') {
+                yardWasteDay = results.YARDDAY;
+            } else {
+                throw new Error('Unsupported city');
+            }
 
             // Construct the speech response
-            const speechText = `Yardwaste pickup is on ${results[3].YARDDAY}.`;
+            const speechText = `Yardwaste pickup is on ${yardWasteDay}.`;
 
             return handlerInput.responseBuilder.speak(speechText).getResponse();
 
@@ -200,17 +244,25 @@ class GetBulkPickupIntentHandler extends BaseIntentHandler {
             const permissionResponse = checkAndHandlePermissions(handlerInput, 'read::alexa:device:all:address');
             if (permissionResponse) return permissionResponse;
 
-            const results = await fetchDataForUserAddress(handlerInput);
+            const data = await fetchDataForUserAddress(handlerInput);
+            const results = data.attributes;
+            const city = data.city;
 
-            // Extract week number and day of week from BULKDAY (assuming format "1st Tuesday")
-            const [_, weekNumStr, dayOfWeek] = results[0].BULKDAY.match(/(\d)(?:st|nd|rd|th) (\w+)/);
-            const weekNumber = parseInt(weekNumStr, 10);
+            let bulkDay;
 
-            // Determine the next bulk pickup date
-            const nextPickupDate = calculateBulkReminderDate(dayOfWeek, weekNumber, 0);
-            
+            if (city === 'Fort Lauderdale') {
+                // Extract week number and day of week from BULKDAY (assuming format "1st Tuesday")
+                const [_, weekNumStr, dayOfWeek] = results.BULKDAY.match(/(\d)(?:st|nd|rd|th) (\w+)/);
+                const weekNumber = parseInt(weekNumStr, 10);
+                bulkDay = calculateBulkReminderDate(dayOfWeek, weekNumber, 0);
+            } else if (city === 'Tamarac') {
+                bulkDay = results.BULKDAY; // Assuming the format is already a day like "Tuesday"
+            } else {
+                throw new Error('Unsupported city');
+            }
+
             // Construct the speech response
-            const speechText = `The next bulk trash pickup is on ${nextPickupDate.toDateString()}.`;
+            const speechText = `The next bulk trash pickup is on ${bulkDay.toDateString()}.`;
 
             return handlerInput.responseBuilder.speak(speechText).getResponse();
 
@@ -341,7 +393,7 @@ class FallbackIntentHandler extends BaseIntentHandler {
     }
 
     handle(handlerInput) {
-        const speechText = 'Sorry, I don’t know that. You can ask me about your trash pickup schedule.';
+        const speechText = 'Sorry, I do not know that. You can ask me about your trash pickup schedule.';
         return handlerInput.responseBuilder.speak(speechText).reprompt(speechText).getResponse();
     }
 }

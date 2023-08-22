@@ -24,30 +24,35 @@ async function geocodeAddress(address) {
 async function fetchData(layerId, latitude, longitude) {
     const url = BASE_URL.replace("{}", layerId).replace("longitude", longitude).replace("latitude", latitude);
     const response = await axios.get(url);
+    if (!response.data || !response.data.features || !response.data.features[0]) {
+        throw new Error('Unexpected data from GIS service');
+}
     return response.data.features[0].attributes;
-}
 
-function constructResponse(results) {
-    const responses = [];
-
-    if (results[0] && results[0].BULKDAY) {
-        responses.push(`Bulk trash pickup is on the ${results[0].BULKDAY} of each month.`);
+    function constructResponse(results) {
+        const responseMapping = {
+            'BULKDAY': 'Bulk trash pickup is on the',
+            'RECYCLDAY': 'Recycling pickup is on',
+            'TRASHDAY': 'Trash pickup is on',
+            'YARDDAY': 'Yardwaste pickup is on'
+        };
+        
+        let responses = [];
+    
+        for (let result of results) {
+            for (let key in result) {
+                if (responseMapping[key]) {
+                    if (key === 'BULKDAY') {
+                        responses.push(`${responseMapping[key]} ${result[key]} of each month.`);
+                    } else {
+                        responses.push(`${responseMapping[key]} ${result[key]}.`);
+                    }
+                }
+            }
+        }
+    
+        return responses.join(' ');
     }
-
-    if (results[1] && results[1].RECYCLDAY) {
-        responses.push(`Recycling pickup is on ${results[1].RECYCLDAY}.`);
-    }
-
-    if (results[2] && results[2].TRASHDAY) {
-        responses.push(`Trash pickup is on ${results[2].TRASHDAY}.`);
-    }
-
-    if (results[3] && results[3].YARDDAY) {
-        responses.push(`Yardwaste pickup is on ${results[3].YARDDAY}.`);
-    }
-
-    return responses.join(' ');
-}
 
 function getNextDateForDay(dayOfWeek) {
     const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -72,4 +77,4 @@ module.exports = {
     constructResponse,
     BASE_URL,
     LAYERS
-};
+}};

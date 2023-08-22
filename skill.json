@@ -1,0 +1,40 @@
+{
+    "manifest": {
+      "publishingInformation": {
+        "locales": {
+          "en-US": {
+            "name": "Trash Pickup",
+            "description": "Lets you ask questions related to your trash pickup."
+          }
+        }
+      },
+      "apis": {
+        "custom": {
+          "endpoint": {
+            "sourceDir": "lambda/custom",
+            "uri": "Your AWS Lambda ARN or HTTPS endpoint"
+          }
+        }
+      },
+      "manifestVersion": "1.0",
+      "privacyAndCompliance": {
+        "locales": {
+          "en-US": {
+            "privacyPolicyUrl": "none",
+            "termsOfUseUrl": "n/a"
+          }
+        },
+        "isExportCompliant": true,
+        "containsAds": false,
+        "allowsPurchases": false,
+        "usesPersonalInfo": false,
+        "isChildDirected": false
+      },
+      "permissions": [],
+      "events": {
+        "publications": [],
+        "subscriptions": []
+      }
+    }
+  }
+  
